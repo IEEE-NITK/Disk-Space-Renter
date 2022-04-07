@@ -116,19 +116,33 @@ contract DiskSpaceRenter {
         return requesterList[msg.sender];
     }
 
+    function getUserTransaction(address sender)public view returns(Request memory r){
+        return requesterList[sender];
+    }
+
+    function getProviderSpace(address sender)public view returns(uint){
+        return providerList[sender].space;
+    }
+
     function addCIDToTransaction(string memory cid) public{
         requesterList[msg.sender].cids.push(cid);
     }
+
+    function getTransactionOfProvider() public view returns(address requester){
+        address caller = msg.sender;
+        if(providerToRequester[caller].length>0)return providerToRequester[caller][0];
+        else return caller;
+    }
     
     // front end should give array of cids as argument to this func
-    function requestSpace(uint _spaceInMB, uint _duplications, uint _duration, string[] memory _cids,uint startTime, address[] memory gettingProvider) public payable onlyRequester {
+    function requestSpace(uint _spaceInMB, uint _duplications, uint _duration, string[] memory _cids, address[] memory gettingProvider) public payable onlyRequester {
         // duration in seconds
         // price is a function of requesters space, duration and duplications
         // uint price = 2000000000000000000;
         // msg.value = price;
         require(msg.sender.balance > msg.value);
         
-        Request memory r = Request(_spaceInMB, _duplications, _duration, _cids, startTime, gettingProvider);
+        Request memory r = Request(_spaceInMB, _duplications, _duration, _cids, block.timestamp, gettingProvider);
         requesterList[msg.sender] = r;
         payRent();
 
@@ -147,11 +161,11 @@ contract DiskSpaceRenter {
         //learn how to hide this function
     }
 
-    function approveRequest (uint requester_index) public onlyProvider {
+    function approveRequest (address requester) public onlyProvider returns (bool ) {
         address caller = msg.sender;
-        address requester = requesters[requester_index];
+        bool added = false;
         if(providerList[caller].space != 0) {
-            if(requesterList[requester].space < providerList[caller].space) {
+            if(requesterList[requester].space <= providerList[caller].space) {
                 if(requesterToProvider[requester].length < requesterList[requester].duplications) {
                     providerToRequester[caller].push(requester);
                     requesterToProvider[requester].push(caller);
@@ -160,6 +174,7 @@ contract DiskSpaceRenter {
 
                     requesterList[requester].startTime = block.timestamp;
                     requesterList[requester].providersList.push(caller);
+                    added = true;
                 }
 
                 else {
@@ -173,6 +188,7 @@ contract DiskSpaceRenter {
         else {
             // not a provider
         }
+        return added;
     }
 
     // releasePayment() is called by provider. it checks the duration and transfers the funds

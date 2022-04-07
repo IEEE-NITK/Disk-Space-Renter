@@ -7,6 +7,8 @@ import ipfshttpclient
 import ipfsApi
 import requests
 
+from contracts.transaction import transaction
+
 
 blockchain_address = 'http://127.0.0.1:9545'
 
@@ -29,6 +31,29 @@ contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi
 
 globalProviderList = contract.functions.getProviders().call()
 globalRequesterList = contract.functions.getRequesters().call()
+globalTransactionList = contract.functions.getAllTransactions().call()
+globalTransactionDict = {}
+
+def getProviderSpace(sender):
+    return contract.functions.getProviderSpace(sender).call()
+
+# Parse all transactions
+# Get number of transactions
+def getUserTransaction(sender):
+    return contract.functions.getUserTransaction(sender).call()        
+totalNumberOfTransactions = len(globalTransactionList[0])
+for i in range(0,totalNumberOfTransactions):
+    tempCurrTransaction = getUserTransaction(globalTransactionList[4][i])
+    globalTransactionDict[globalTransactionList[4][i]] = transaction(tempCurrTransaction[0],tempCurrTransaction[1],tempCurrTransaction[2],tempCurrTransaction[3],tempCurrTransaction[4],tempCurrTransaction[5],globalTransactionList[4][i],globalTransactionList[-1][i]) 
+      
+def refreshTransactions():
+    globalTransactionList = contract.functions.getAllTransactions().call()
+    totalNumberOfTransactions = len(globalTransactionList[0])
+    globalTransactionDict = {}
+    for i in range(0,totalNumberOfTransactions):
+        tempCurrTransaction = getUserTransaction(globalTransactionList[4][i])
+        globalTransactionDict[globalTransactionList[4][i]] = transaction(tempCurrTransaction[0],tempCurrTransaction[1],tempCurrTransaction[2],tempCurrTransaction[3],tempCurrTransaction[4],tempCurrTransaction[5],globalTransactionList[4][i],globalTransactionList[-1][i]) 
+    
 
 from art import *
 tprint("Disk Space Renter System")
@@ -72,7 +97,7 @@ else:
             break  
         
 
-    isRequester = int(input("Are you a requester?(Press 1 if yes!)"))
+    isRequester = int(input("Are you a requester?(Press 1 if yes!) : "))
 
     if(isRequester==1):
         isRequester=True
@@ -87,14 +112,14 @@ else:
         else:print("Could not register!")
 
 current_user = contract.functions.getCurrentUser().call()
-print("Your ID is ",current_user)
+print("\nYour ID is ",current_user,'\n')
 
-print("Here is the list of all requesters")
+print("\nHere is the list of all requesters")
 answer = contract.functions.getRequesters().call()
-print(answer)
-print("Here is the list of all providers")
+print(answer,'\n')
+print("\nHere is the list of all providers")
 answer1 = contract.functions.getProviders().call()
-print(answer1)
+print(answer1,'\n')
 
 if(isRequester):
     currentUserTransaction = contract.functions.currentUserTransaction().call()
@@ -103,19 +128,16 @@ if(isRequester):
         wantToReqSpace = int(input("Want to request space? : "))
         if(wantToReqSpace==1):
             print("Request Space Dashboard")
-            # TODO add non hardcoded values
-            contract.functions.requestSpace(200,2,50000,[],1,[]).transact()
+            space = int(input("Kindly input the space you require : "))
+            duplications = int(input("Kindly input the number of duplications you desire : "))
+            duration = int(input("Kindly input the duration of the space you need : "))
+            contract.functions.requestSpace(space,duplications,duration,[],[]).transact()
             print("Transaction Created!")
         else:
             print("Okay, thank you!")
     else:
         print("\n\nYOU HAVE THE FOLLOWING TRANSACTION\n\n")
-        print("Space : ",currentUserTransaction[0])
-        print("Duplications : ",currentUserTransaction[1])
-        print("Duration : ",currentUserTransaction[2])
-        print("CIDs : ",currentUserTransaction[3])
-        print("Start Time : ",currentUserTransaction[4])
-        print('\n\n')
+        globalTransactionDict[accountAddress].printTransaction()
 
         wantToUploadFile = int(input("Do you want to upload a file? : "))
         if(wantToUploadFile==1):
@@ -123,24 +145,36 @@ if(isRequester):
             filename = askopenfilename()
             res = api.add(filename)
             cid = res[0]["Hash"]
-            print(cid)
-            contract.functions.addCIDToTransaction(cid).transact()
             print("FILE UPLOADED")
-    print('Here are the requesters!')    
-    ans = contract.functions.getAllTransactions().call()
-    print(ans)      
+            print("Here is the CID of the file that was uploaded to IPFS : ",cid)
+            contract.functions.addCIDToTransaction(cid).transact()
+            
 
 
 if(isRequester!=True):
-    print("Here are the requesters' transactions!")    
-    print("Space\tDuplications\tDuration\tStart Time\tRequester")
-    ans = contract.functions.getAllTransactions().call()
-    print(ans)
-    wantToProvideForWhichRequester = int(input("Want to provide for which transaction? : "))  
-    #wtf is happening here
-    if(wantToProvideForWhichRequester!=0):
-        addressToProvideFor = ans[5][wantToProvideForWhichRequester-1]
-        print(addressToProvideFor)
+    # This is a provider
+    
+    #check if user is providing
+    requesterBeingProvided = contract.functions.getTransactionOfProvider().call()
+    if(requesterBeingProvided==accountAddress):
+        print("You are currently not part of any transaction!")
+        print("Here are the requesters' transactions!\n")    
+        for i, (k, v) in enumerate(globalTransactionDict.items()):
+            if(v.canProvide and getProviderSpace(accountAddress)>=v.space):
+                print("Transaction ",i+1,'\n')
+                v.printTransaction()
+                print('\n')
+        wantToProvideForWhichRequester = (input("Want to provide for which account?(enter 0 for none) : "))  
+        if(wantToProvideForWhichRequester!="0"):
+            added = contract.functions.approveRequest(wantToProvideForWhichRequester).transact()
+            if(added):print("You are now part of this transaction!")
+            else: print("You were not added to transaction due to some inconsistency!")
+    else:
+        print("You are currently providing for the following transaction\n")
+        transactionProvidingFor = globalTransactionDict[requesterBeingProvided]
+        transactionProvidingFor.printTransaction()    
+        print('\n')
+    
 
-        contract.functions.approveRequest(addressToProvideFor).transact()
-        print("You are now part of this transaction!")
+
+
