@@ -1,8 +1,10 @@
 import json
+import tkinter
 from web3 import Web3, HTTPProvider
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 import ipfshttpclient
+import ipfsApi
 import requests
 
 
@@ -63,6 +65,7 @@ if(isRequester):
         wantToReqSpace = int(input("Want to request space? : "))
         if(wantToReqSpace==1):
             print("Request Space Dashboard")
+            # TODO add non hardcoded values
             contract.functions.requestSpace(200,2,50000,[],1,[]).transact()
             print("Transaction Created!")
         else:
@@ -78,7 +81,11 @@ if(isRequester):
 
         wantToUploadFile = int(input("Do you want to upload a file? : "))
         if(wantToUploadFile==1):
-            cid = "QmYFQKAWgf9shjNm5CetXz2r1vJ5FHd1FXaWh4votXNSN4"
+            api = ipfsApi.Client('127.0.0.1', 5001)
+            filename = askopenfilename()
+            res = api.add(filename)
+            cid = res[0]["Hash"]
+            print(cid)
             contract.functions.addCIDToTransaction(cid).transact()
             print("FILE UPLOADED")
     print('Here are the requesters!')    
@@ -96,5 +103,6 @@ if(isRequester!=True):
     if(wantToProvideForWhichRequester!=0):
         addressToProvideFor = ans[5][wantToProvideForWhichRequester-1]
         print(addressToProvideFor)
+
         contract.functions.approveRequest(addressToProvideFor).transact()
         print("You are now part of this transaction!")
