@@ -14,6 +14,8 @@ web3 = Web3(HTTPProvider(blockchain_address))
 
 web3.eth.defaultAccount = web3.eth.accounts[0]
 
+globalAccountList = web3.eth.accounts
+
 compiled_contract_path = 'build/contracts/DiskSpaceRenter.json'
 
 deployed_contract_address = '0x828b0b9D475C12AB15939DFCe8e6368E489B33AA'
@@ -25,17 +27,53 @@ with open(compiled_contract_path) as file:
 # Fetch deployed contract reference
 contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
 
-# Call contract function (this is not persisted to the blockchain)
-print("Welcome to the Disk Space Renter System!")
+globalProviderList = contract.functions.getProviders().call()
+globalRequesterList = contract.functions.getRequesters().call()
+
+from art import *
+tprint("Disk Space Renter System")
+
+
 prev_user = int(input("If you are an old user, enter 1, else 2 : "))
-print(prev_user)
 isRequester = False
+accountAddress = ""
+
 if(prev_user==1):
-    print("Old User")
-    
+    # Old User
+    accountAddress = input("Please enter your account address : ")
+    # check if he is old requester
+    for requester in globalRequesterList:
+        if(requester == accountAddress):
+            print("Welcome Back, you are an old requester!")
+            web3.eth.defaultAccount = accountAddress
+            isRequester= True
+    # check if he is old provider
+    for provider in globalProviderList:
+        if(provider == accountAddress):
+            print("Welcome Back, you are an old provider!")
+            web3.eth.defaultAccount = accountAddress
+            isRequester= False
+
 else:
-    print("New User")
+    # New User
+
+    # Look for an available address
+    for account in globalAccountList:
+        availableAddress = True
+        for requester in globalRequesterList:
+            if(requester == account):
+                availableAddress = False
+        for provider in globalProviderList:
+            if(provider == account):
+                availableAddress = False
+        if(availableAddress):
+            accountAddress = account      
+            web3.eth.defaultAccount = accountAddress
+            break  
+        
+
     isRequester = int(input("Are you a requester?(Press 1 if yes!)"))
+
     if(isRequester==1):
         isRequester=True
         added = contract.functions.addRequester().transact()
